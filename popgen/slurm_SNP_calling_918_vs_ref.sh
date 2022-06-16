@@ -44,7 +44,7 @@ Out2=$OutDir/"${RefName%.*}.vcf"
 
 # conda activate gatk4
 
-gatk --java-options HaplotypeCaller \
+$ProgDir/gatk --java-options HaplotypeCaller \
      -R $Project/$Reference \
      -ploidy 1 \
      -I $Project/analysis/popgen/vs_Y-11545_v2/s.stipitis/ab918/ab918_vs_Y-11545_v2_sorted_nomulti_proper_sorted_nodup_rg.bam \
