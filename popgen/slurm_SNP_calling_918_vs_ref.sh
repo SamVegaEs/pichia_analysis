@@ -30,7 +30,7 @@ RefName=$(basename "$Reference")
 Out1=$OutDir/"${RefName%.*}_temp.vcf"
 Out2=$OutDir/"${RefName%.*}.vcf"
 
-# ProgDir=/home/sv264/local/bin/GenomeAnalysisTK-3.6
+# ProgDir=/home/sv264/git_repos/tools/seq_tools/gatk-4.2.6.1/
 
 # java -jar $ProgDir/GenomeAnalysisTK.jar \
 #      -R $Project/$Reference \
