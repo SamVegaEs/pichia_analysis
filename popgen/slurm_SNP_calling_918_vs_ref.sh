@@ -30,8 +30,6 @@ RefName=$(basename "$Reference")
 Out1=$OutDir/"${RefName%.*}_temp.vcf"
 Out2=$OutDir/"${RefName%.*}.vcf"
 
-# ProgDir=/home/sv264/git_repos/tools/seq_tools/gatk-4.2.6.1/
-
 # java -jar $ProgDir/GenomeAnalysisTK.jar \
 #      -R $Project/$Reference \
 #      -T HaplotypeCaller \
@@ -44,6 +42,7 @@ Out2=$OutDir/"${RefName%.*}.vcf"
 
 # conda activate gatk4
 
+ProgDir=/home/sv264/git_repos/tools/seq_tools/gatk-4.2.6.1/
 $ProgDir/gatk --java-options HaplotypeCaller \
      -R $Project/$Reference \
      -ploidy 1 \
