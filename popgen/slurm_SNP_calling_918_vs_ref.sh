@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=long
-#SBATCH --time=24:00:00
-#SBATCH --mem=10gb
-#SBATCH --cpus-per-task=24
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mail-user=sv264@kent.ac.uk
+#SBATCH --output=/home/sv264/%j.out
 
 # Testing parallelisation of GATk HaplotypeCaller - may crash. (It did not! Resulted in 2x speedup)
 # NOTE: this is a haploid organism. For diploid organism, change "ploidy" argument to 2.
@@ -17,21 +17,20 @@
 Reference=$1
 Isolate=$2
 
-# Project=/home/groups/harrisonlab/project_files/Pichia
-Project=/projects/oldhome/groups/harrisonlab/project_files/Pichia
+# Project=/home/sv264
+Project=/home/sv264
 # OutDir=analysis/popgen/SNP_calling
 # OutDir=analysis/popgen/SNP_calling
-OutDir=vs_${Isolate}
+OutDir=analysis/popgen/SNP_calling/Y-11545_v2/vs_${Isolate}
 mkdir $OutDir
-# Reference=$(ls /home/groups/harrisonlab/project_files/Pichia/repeat_masked/P.stipitis/589/filtered_contigs/589_contigs_unmasked.fa)
-# Reference=$(ls /home/groups/harrisonlab/project_files/Pichia/repeat_masked/P.stipitis/589/filtereed_contigs/589_contigs_softmasked_repeatmasker_TPSI_appended.fa)
+# Reference=$(ls /home/sv264/assembly/misc_publications/p.stipitis/Y-11545_v2/pichia.fasta)
 
 
 RefName=$(basename "$Reference")
 Out1=$OutDir/"${RefName%.*}_temp.vcf"
 Out2=$OutDir/"${RefName%.*}.vcf"
 
-# ProgDir=/projects/oldhome/sobczm/bin/GenomeAnalysisTK-3.6
+# ProgDir=/home/sv264/local/bin/GenomeAnalysisTK-3.6
 
 # java -jar $ProgDir/GenomeAnalysisTK.jar \
 #      -R $Project/$Reference \
@@ -39,9 +38,8 @@ Out2=$OutDir/"${RefName%.*}.vcf"
 #      -ploidy 1 \
 #      -nct 24 \
 #      --allow_potentially_misencoded_quality_scores \
-#      -I $Project/analysis_aa/popgen/P.stipitis/589/589_vs_589_unmasked_sorted_nomulti_proper_sorted_nodup_rg.bam \
-#      -I $Project/analysis_aa/popgen/P.stipitis/591/591_vs_589_unmasked_sorted_nomulti_proper_sorted_nodup_rg.bam \
-#      -I $Project/analysis_aa/popgen/P.stipitis/594/594_vs_589_unmasked_sorted_nomulti_proper_sorted_nodup_rg.bam \
+#      -I $Project/analysis/popgen/vs_Y-11545_v2/s.stipitis/ab918/ab918_vs_Y-11545_v2_sorted_nomulti_proper_sorted_nodup_rg.bam \
+#      -I $Project/analysis/popgen/vs_Y-11545_v2/s.stipitis/ab920/ab920_vs_Y-11545_v2_sorted_nomulti_proper_sorted_nodup_rg.bam \
 #      -o $Out1
 
 # conda activate gatk4
@@ -49,8 +47,8 @@ Out2=$OutDir/"${RefName%.*}.vcf"
 gatk HaplotypeCaller \
      -R $Project/$Reference \
      -ploidy 1 \
-     -I $Project/analysis_aa/popgen/P.stipitis/589/589_vs_589_sorted_nomulti_proper_sorted_nodup_rg.bam \
-     -I $Project/analysis_aa/popgen/P.stipitis/594/594_vs_589_sorted_nomulti_proper_sorted_nodup_rg.bam \
+     -I $Project/analysis/popgen/vs_Y-11545_v2/s.stipitis/ab918/ab918_vs_Y-11545_v2_sorted_nomulti_proper_sorted_nodup_rg.bam \
+     -I $Project/analysis/popgen/vs_Y-11545_v2/s.stipitis/ab920/ab920_vs_Y-11545_v2_sorted_nomulti_proper_sorted_nodup_rg.bam \
      -O $Out1
 
 #Break down complex SNPs into primitive ones with VariantsToAllelicPrimitives
