@@ -42,7 +42,7 @@ Out2=$OutDir/"${RefName%.*}.vcf"
 
 # conda activate gatk4
 
-ProgDir=/home/sv264/git_repos/tools/seq_tools/gatk-4.2.6.1
+ProgDir=/home/sv264/git_repos/tools/seq_tools/gatk
 $ProgDir/gatk --java-options HaplotypeCaller \
      -R $Project/$Reference \
      -ploidy 1 \
