@@ -24,9 +24,7 @@ for StrainPath in $(ls -d projects/niab_assemblies/p.stipitis/raw_dna/paired/ab9
     sbatch $ProgDir/rna_qc_fastq-mcf_slurm.sh $ReadsF $ReadsR $IlluminaAdapters DNA
   done
 ```
-
-
-#Busco was used to assess completeness of the genomes. 
+Busco was used to assess completeness of the genomes. 
 
 ```bash
 for Assembly in $(ls niab_assemblies/*/920/*.fasta); do
@@ -76,6 +74,99 @@ List of missing BUSCOS in 920:
 41181at4891
 6800at4891
 ```
+
+GENOME ALIGNMENTS
+
+First we did the genome alignments with Mummer for all the possible combinations required:
+
+All versus Illumina of Y-11545.
+
+```bash
+Reference=$(ls assembly/misc_publications/p.stipitis/*/pichia.fasta)
+for Query in $(ls niab_assemblies/pichia/*/*.fasta); do
+Strain=$(echo $Query | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $Query | rev | cut -f3 -d '/' | rev)
+echo "$Organism - $Strain"
+Prefix="$Strain"_vs_Y-11545
+OutDir=analysis/genome_alignment/mummer/$Organism/$Strain/$Prefix
+ProgDir=git_repos/tools/seq_tools/genome_alignment/MUMmer
+sbatch $ProgDir/sub_nucmer_slurm.sh $Reference $Query $Prefix $OutDir
+done
+```
+```bash
+Reference=$(ls assembly/misc_publications/p.stipitis/*/pichia.fasta)
+for Query in $(ls niab_assemblies/pichia/*/*/*.fasta); do
+Strain=$(echo $Query | rev | cut -f3 -d '/' | rev)
+Organism=$(echo $Query | rev | cut -f4 -d '/' | rev)
+echo "$Organism - $Strain"
+Prefix="$Strain"_vs_Y-11545_split_chromosomes
+OutDir=analysis/genome_alignment/mummer/$Organism/$Strain/$Prefix
+ProgDir=git_repos/tools/seq_tools/genome_alignment/MUMmer
+sbatch $ProgDir/sub_nucmer_slurm.sh $Reference $Query $Prefix $OutDir
+done
+```
+918 vs 920
+
+```bash
+Reference=$(ls niab_assemblies/pichia/918/*.fasta)
+for Query in $(ls niab_assemblies/pichia/920/*.fasta); do
+Strain=$(echo $Query | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $Query | rev | cut -f3 -d '/' | rev)
+echo "$Organism - $Strain"
+Prefix="$Strain"_vs_918
+OutDir=analysis/genome_alignment/mummer/$Organism/$Strain/$Prefix
+ProgDir=git_repos/tools/seq_tools/genome_alignment/MUMmer
+sbatch $ProgDir/sub_nucmer_slurm.sh $Reference $Query $Prefix $OutDir
+done
+```
+918 vs 1082
+
+```bash
+Reference=$(ls niab_assemblies/pichia/918/*.fasta)
+for Query in $(ls niab_assemblies/pichia/1082/*.fasta); do
+Strain=$(echo $Query | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $Query | rev | cut -f3 -d '/' | rev)
+echo "$Organism - $Strain"
+Prefix="$Strain"_vs_918
+OutDir=analysis/genome_alignment/mummer/$Organism/$Strain/$Prefix
+ProgDir=git_repos/tools/seq_tools/genome_alignment/MUMmer
+sbatch $ProgDir/sub_nucmer_slurm.sh $Reference $Query $Prefix $OutDir
+done
+```
+918 and 920 vs Y-7124
+
+```bash
+Reference=$(ls assembly/misc_publications/p.stipitis/*/*.fasta)
+for Query in $(ls niab_assemblies/pichia/9*/*.fasta); do
+Strain=$(echo $Query | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $Query | rev | cut -f3 -d '/' | rev)
+echo "$Organism - $Strain"
+Prefix="$Strain"_vs_Y-7124
+OutDir=analysis/genome_alignment/mummer/$Organism/$Strain/$Prefix
+ProgDir=git_repos/tools/seq_tools/genome_alignment/MUMmer
+sbatch $ProgDir/sub_nucmer_slurm.sh $Reference $Query $Prefix $OutDir
+done
+```
+With Mummer alignments circos plots were generated (see specific folder)
+
+A second round of genome alignments was done with bwa to plot read coverage over the assembly of Y-11545.
+
+```bash
+for Assembly in $(ls niab_assemblies/pichia/1082/*.fasta); do
+Reference=$(ls assembly/misc_publications/p.stipitis/Y-11545_v2/pichia.fasta)
+Strain=$(echo $Assembly | rev | cut -f2 -d '/'| rev)
+Organism=$(echo $Reference | rev | cut -f3 -d '/' | rev)
+Reads=$(ls niab_assemblies/pichia/1082/*.fastq.gz)
+Prefix="${Organism}_${Strain}"
+OutDir=analysis/genome_alignment/minimap/$Organism/vs_${Strain}
+mkdir -p $OutDir
+ProgDir=git_repos/tools/seq_tools/genome_alignment
+sbatch $ProgDir/minimap/slurm_minimap2.sh $Reference $Reads $OutDir
+done
+```
+
+(To see how the circos plots were generated see specific folder)
+
 
 GENE MODELS 
 
