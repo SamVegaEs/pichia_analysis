@@ -247,3 +247,280 @@ done
 
 Ctrl a + d
 ```
+To run the same program with Slurm:
+
+```bash
+conda activate fungap
+
+for Assembly in $(ls ~/niab_assemblies/*/1082/AB1082.fasta); do
+echo $Assembly
+Strain=$(echo $Assembly | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $Assembly | rev | cut -f3 -d '/' | rev)
+echo "$Organism - $Strain"
+Reads1=$(ls ~/raw_rna/*/*/*/*_1.fastq)
+Reads2=$(ls ~/raw_rna/*/*/*/*_2.fastq)
+sbatch fungap_slurm_3.sh
+done
+```
+
+SNP Calling.
+
+First we need to do the alignment of the sequencing reads versus the genomes of interest with bwa. We will align both 918 and 920 to Y-11545 and then 918 to 1082.
+
+1. AB918 and AB920 against Y-11545.
+
+```bash
+for Reference in $(ls assembly/misc_publications/p.stipitis/Y-11545_v2/*/GCF_000209165.1_ASM20916v1_genomic.fna); do
+for StrainPath in $(ls -d qc_dna/paired/s.stipitis/ab9*/*); do
+Strain=$(echo $StrainPath | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $StrainPath | rev | cut -f3 -d '/' | rev)
+Ref=$(echo $Reference | rev | cut -f3 -d '/' | rev)
+F_Read=$(ls $StrainPath/*_trim.fq.gz)
+R_Read=$(ls $StrainPath/*_trim.fq.gz)
+echo $F_Read
+echo $R_Read
+echo $Ref
+Prefix="${Organism}_${Strain}"
+OutDir=analysis/genome_alignment/bwa/$Organism/$Strain/vs_${Ref}
+ProgDir=~/git_repos/tools/seq_tools/genome_alignment/bwa
+sbatch $ProgDir/sub_bwa_slurm.sh $Prefix $Reference $F_Read $R_Read $OutDir
+done
+done
+```
+
+1.1 Pre SNP calling clean up.
+
+1.1.1
+
+Rename input mapping files in each folder by prefixing with the strain ID.
+
+Alignment of the evolved strains were made against the parental strain.
+
+```bash
+  for File in $(ls analysis/genome_alignment/bwa/*/*/vs_Y-11545_v2/*_sorted.bam); do
+    Strain=$(echo $File | rev | cut -f3 -d '/' | rev)
+    Organism=$(echo $File | rev | cut -f4 -d '/' | rev)
+    Prefix="vs_Y-11545_v2"
+    echo "$Organism - $Strain"
+    OutDir=analysis/popgen/${Prefix}/$Organism/$Strain
+    CurDir=$PWD
+    echo $OutDir
+    mkdir -p $OutDir
+    cp $CurDir/$File $OutDir/${Strain}_${Prefix}_sorted.bam
+  done
+```
+
+1.1.2
+
+Remove multimapping reads, discordant reads. PCR and optical duplicates, and add read group and sample name to each mapped read (preferably, the shortest ID possible)
+
+Convention used: qsub $ProgDir/sub_pre_snp_calling.sh <SAMPLE_ID>
+
+```bash
+Reference=$(ls assembly/misc_publications/p.stipitis/Y-11545_v2/*/GCF_000209165.1_ASM20916v1_genomic.fna)
+for Sam in $(ls analysis/popgen/vs_Y-11545_v2/*/*/*_sorted.bam); do
+Strain=$(echo $Sam | rev | cut -f2 -d '/' | rev)
+Organism=$(echo $Sam | rev | cut -f3 -d '/' | rev)
+echo "$Organism - $Strain"
+ProgDir=~/git_repos/scripts/pichia_analysis/popgen
+sbatch $ProgDir/slurm_pre_snp_calling_2.sh $Sam $Strain $Reference
+done
+```
+Prepare genome reference indexes required by GATK. Prepare for 918 and 920.
+
+```bash
+for Reference in $(ls assembly/misc_publications/p.stipitis/Y-11545_v2/*/GCF_000209165.1_ASM20916v1_genomic.fna); do
+OutName=$(echo $Reference | sed 's/.fna/.dict/g')
+OutDir=$(dirname $Reference)
+mkdir -p $OutDir
+ProgDir=/home/sv264/local/bin/picard-2.27.3
+java -jar $ProgDir/picard.jar CreateSequenceDictionary R=$Reference O=$OutName
+samtools faidx $Reference
+done
+```
+SNP calling of 918 vs the reference genome
+
+```bash
+Isolate="ab918"
+Reference=$(ls assembly/misc_publications/p.stipitis/Y-11545_v2/*/GCF_000209165.1_ASM20916v1_genomic.fna)
+Ref=$(echo $Reference | rev | cut -f1 -d '/' | rev)
+CurDir=$PWD
+OutDir=analysis/popgen/SNP_calling/Y-11545_v2/vs_${Isolate}
+mkdir -p $OutDir
+ProgDir=/home/sv264/git_repos/scripts/pichia_analysis/popgen
+sbatch $ProgDir/slurm_SNP_calling_918_vs_ref_2.sh $Reference $Isolate
+```
+918 vs ref Filter SNPs
+
+```bash
+Vcf=$(ls analysis/popgen/SNP_calling/Y-11545_v2/vs_ab918/_temp.vcf)
+vcftools=/home/sv264/local/bin/vcftools_0.1.13/bin
+vcflib=/home/sv264/miniconda3/pkgs/vcflib-1.0.0_rc2-h56106d0_2/bin
+mq=40
+qual=30
+dp=10
+gq=30
+na=1.00
+removeindel=N
+echo "count prefilter"
+cat ${Vcf} | grep -v '#' | wc -l
+
+export LD_LIBRARY_PATH=/home/sv264/miniconda3/pkgs/bzip2-1.0.8-h7b6447c_0/lib
+export LD_LIBRARY_PATH=/home/sv264/miniconda3/lib
+export PYTHONPATH=/usr/lib64/python2.7
+$vcflib/vcffilter -f "QUAL > $qual & MQ > $mq" $Vcf \
+| $vcflib/vcffilter -g "DP > $dp & GQ > $gq" > ${Vcf%.vcf}_qfiltered.vcf
+
+echo "count qfilter"
+cat ${Vcf%.vcf}_qfiltered.vcf | grep -v '#' | wc -l
+$vcftools/vcftools --vcf ${Vcf%.vcf}_qfiltered.vcf --max-missing $na --remove-indels --recode --out ${Vcf%.vcf}_qfiltered_presence
+$vcftools/vcftools --vcf ${Vcf%.vcf}_qfiltered.vcf --max-missing $na --keep-only-indels --recode --out ${Vcf%.vcf}_indels_qfiltered_presence
+```
+```
+count prefilter
+50253
+
+count qfilter
+49481
+
+After filtering, kept 2 out of 2 Individuals
+Outputting VCF file...
+After filtering, kept 45319 out of a possible 49481 Sites
+Run Time = 1.00 seconds
+
+After filtering, kept 2 out of 2 Individuals
+Outputting VCF file...
+After filtering, kept 3630 out of a possible 49481 Sites
+Run Time = 0.00 seconds
+```
+
+Collect VCF stats
+
+General VCF stats (remember that vcftools needs to have the PERL library exported)
+
+```bash
+  Isolate="Y-11545_v2"
+  VcfTools=/home/sv264/local/bin/vcftools_0.1.13/perl
+  export PERL5LIB="$VcfTools:$PERL5LIB"
+  VcfFiltered=$(ls analysis/popgen/SNP_calling/${Isolate}/*/*_qfiltered_presence*.vcf | grep -v 'indels')
+  Stats=$(echo $VcfFiltered | sed 's/.vcf/.stat/g')
+  perl $VcfTools/vcf-stats $VcfFiltered > $Stats
+  VcfFiltered=$(ls analysis/popgen/SNP_calling/${Isolate}/*/*_qfiltered_presence*.vcf | grep 'indels')
+  Stats=$(echo $VcfFiltered | sed 's/.vcf/_indels.stat/g')
+  perl $VcfTools/vcf-stats $VcfFiltered > $Stats
+```
+Calculate the index for percentage of shared SNP alleles between the individuals.
+
+```bash
+Isolate="Y-11545_v2"
+  for Vcf in $(ls analysis/popgen/SNP_calling/${Isolate}/*/*_qfiltered_presence*.vcf | grep -v 'indels'); do
+      ProgDir=~/git_repos/scripts/popgen/snp
+      $ProgDir/similarity_percentage.py $Vcf
+  done
+```
+
+Create custom SnpEff genome database
+```bash
+SnpEff=/home/sv264/local/bin/snpEff
+nano $SnpEff/snpEff.config
+```
+```
+Add the following lines to the section with databases:
+
+#---
+# EMR Databases
+#----
+# Fus2 genome
+Fus2v1.0.genome : Fus2
+# Bc16 genome
+Bc16v1.0.genome: BC-16
+# P414 genome
+P414v1.0.genome: 414
+# 62471 genome
+62471v1.0.genome: 62471
+# R36_14 genome
+R36_14v1.0.genome: R36_14
+# SCRP371 genome
+SCRP371v1.0.genome: SCRP371
+# P. stipis
+Ps589v1.0.genome: 589
+PsY-11545v1.0.genome: Y-11545
+PsCBS6054v1.0.genome: CBS6054
+```
+
+Collect input files
+
+```bash
+Organism="P.stipitis"
+Strain="CBS6054"
+DbName="PsCBS6054v1.0"
+ProjDir=$PWD
+Reference=$(ls $ProjDir/assembly/misc_publications/p.stipitis/Y-11545_v2/*/GCF_000209165.1_ASM20916v1_genomic.fasta)
+Gff=$(ls $ProjDir/assembly/misc_publications/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_genomic.gff)
+SnpEff=/home/sv264/local/bin/snpEff
+mkdir $SnpEff/data/${DbName}
+cp $Reference $SnpEff/data/${DbName}/sequences.fa
+cp $Gff $SnpEff/data/${DbName}/genes.gff
+
+#Build database using GFF3 annotation
+java -jar $SnpEff/snpEff.jar build -gff3 -v ${DbName}
+```
+
+Annotate VCF files
+
+```bash
+Organism="P.stipitis"
+Isolate="CBS6054"
+Strain="Y-11545_v2"
+DbName="PsCBS6054v1.0"
+CurDir=/home/sv264
+cd $CurDir
+  for Vcf in $(ls analysis/popgen/SNP_calling/${Strain}/*/*_qfiltered_presence.recode.vcf | grep -v 'indels'); do
+    echo $Vcf
+    filename=$(basename "$Vcf")
+    Prefix=${filename%.vcf}
+    OutDir=$(dirname $Vcf)
+    SnpEff=/home/sv264/local/bin/snpEff
+    java -Xmx4g -jar $SnpEff/snpEff.jar -v -ud 0 ${DbName} $Vcf > $OutDir/"$Prefix"_annotated.vcf
+    mv snpEff_genes.txt $OutDir/snpEff_genes_"$Prefix".txt
+    mv snpEff_summary.html $OutDir/snpEff_summary_"$Prefix".html
+    # mv 414_v2_contigs_unmasked_filtered* $OutDir/.
+    #-
+    #Create subsamples of SNPs containing those in a given category
+    #-
+    #genic (includes 5', 3' UTRs)
+    java -jar $SnpEff/SnpSift.jar filter "(ANN[0].EFFECT has 'missense_variant') || (ANN[0].EFFECT has 'nonsense_variant') || (ANN[0].EFFECT has 'frameshift_variant') || (ANN[0].EFFECT has 'disruptive_inframe_insertion') || (ANN[0].EFFECT has 'disruptive_inframe_deletion') || (ANN[0].EFFECT has 'exon_loss_variant') || (ANN[0].EFFECT has 'splice_donor_variant') || (ANN[0].EFFECT has 'splice_acceptor_variant') || (ANN[0].EFFECT has 'synonymous_variant') || (ANN[0].EFFECT has 'intron_variant') || (ANN[*].EFFECT has 'splice_region_variant') || (ANN[*].EFFECT has '5_prime_UTR_variant') || (ANN[*].EFFECT has '3_prime_UTR_variant')" $OutDir/"$Prefix"_annotated.vcf > $OutDir/"$Prefix"_gene.vcf
+    #coding
+    java -jar $SnpEff/SnpSift.jar filter "(ANN[0].EFFECT has 'missense_variant') || (ANN[0].EFFECT has 'nonsense_variant') || (ANN[0].EFFECT has 'frameshift_variant') || (ANN[0].EFFECT has 'disruptive_inframe_insertion') || (ANN[0].EFFECT has 'disruptive_inframe_deletion') || (ANN[0].EFFECT has 'exon_loss_variant') || (ANN[0].EFFECT has 'splice_donor_variant') || (ANN[0].EFFECT has 'splice_acceptor_variant') || (ANN[0].EFFECT has 'synonymous_variant')" $OutDir/"$Prefix"_annotated.vcf > $OutDir/"$Prefix"_coding.vcf
+    #non-synonymous
+    java -jar $SnpEff/SnpSift.jar filter "(ANN[0].EFFECT has 'missense_variant') || (ANN[0].EFFECT has 'nonsense_variant') || (ANN[0].EFFECT has 'frameshift_variant') || (ANN[0].EFFECT has 'disruptive_inframe_insertion') || (ANN[0].EFFECT has 'disruptive_inframe_deletion') || (ANN[0].EFFECT has 'disruptive_inframe_insertion') || (ANN[0].EFFECT has 'exon_loss_variant') || (ANN[0].EFFECT has 'splice_donor_variant') || (ANN[0].EFFECT has 'splice_acceptor_variant')" $OutDir/"$Prefix"_annotated.vcf > $OutDir/"$Prefix"_nonsyn.vcf
+    #synonymous
+    java -jar $SnpEff/SnpSift.jar filter "(ANN[0].EFFECT has 'synonymous_variant')" $OutDir/"$Prefix"_annotated.vcf > $OutDir/"$Prefix"_syn.vcf
+    #Four-fold degenrate sites (output file suffix: 4fd)
+    ProgDir=/home/sv264/local/bin/popgen/summary_stats
+    python $ProgDir/parse_snpeff_synonymous.py $OutDir/"$Prefix"_syn.vcf
+    AllSnps=$(cat $OutDir/"$Prefix"_annotated.vcf | grep -v '#' | wc -l)
+    GeneSnps=$(cat $OutDir/"$Prefix"_gene.vcf | grep -v '#' | wc -l)
+    CdsSnps=$(cat $OutDir/"$Prefix"_coding.vcf | grep -v '#' | wc -l)
+    NonsynSnps=$(cat $OutDir/"$Prefix"_nonsyn.vcf | grep -v '#' | wc -l)
+    SynSnps=$(cat $OutDir/"$Prefix"_syn.vcf | grep -v '#' | wc -l)
+    printf "$filename\t$AllSnps\t$GeneSnps\t$CdsSnps\t$NonsynSnps\t$SynSnps\n"
+done
+```
+```bash
+_temp_qfiltered_presence.recode.vcf     45319   22162   19594   4791    14803
+```
+Perform interproscan annotation of the reference protein sequences. Interproscan needs java 11, which is installed in an individual environment called interproscan
+
+```bash
+export PATH=$PATH:/home/sv264/local/bin/my_interproscan/interproscan-5.56-89.0
+Fasta=$(ls assembly/misc_publications/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_protein.faa)
+OutDir=$(dirname $Fasta | sed 's&assembly/misc_publications&gene_pred/interproscan&g')
+ProgDir=/home/sv264/git_repos/tools/seq_tools/feature_annotation/interproscan
+sbatch $ProgDir/slurm_interproscan_2.sh $Fasta $OutDir
+```
+
+```bash
+ProgDir=/home/sv264/git_repos/scripts/pichia_analysis/popgen
+$ProgDir/extract_ref_annotations_2.py --genes_gff assembly/misc_publications/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_genomic.gff --refseq assembly/misc_publications/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_feature_table.txt --snp_vcf analysis/popgen/SNP_calling/Y-11545_v2/vs_ab918/_temp_qfiltered_presence.recode_nonsyn.vcf --InterPro gene_pred/interproscan/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_protein.faa.tsv > analysis/popgen/SNP_calling/Y-11545_v2/vs_ab918/ab918_annotation_table.tsv
+```
