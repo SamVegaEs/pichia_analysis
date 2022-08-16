@@ -165,6 +165,36 @@ sbatch $ProgDir/minimap/slurm_minimap2.sh $Reference $Reads $OutDir
 done
 ```
 
+To generate the coverage plots with circos we need to generate the .tsv files. This can be also used for coverage position comparison when viewed in IGV
+
+```bash
+for Sam in $(ls analysis/genome_alignment/minimap/p.stipitis/vs_*/*_aligned_sorted.bam); do
+  Target=$(echo $Sam | rev | cut -f3 -d '/' | rev)
+  Strain=$(echo $Sam | rev | cut -f2 -d '/' | rev)
+  echo "$Strain-$Target"
+  OutDir=$(dirname $Sam)
+  samtools depth -aa $Sam > $OutDir/${Strain}_${Target}_depth.tsv
+done
+
+for Strain in 580 918 1082; do
+  for Cov in $(ls analysis/genome_alignment/minimap/p.stipitis/vs_*/*_depth.tsv); do
+    echo ${Cov} | cut -f4,5,6 -d '/' --output-delimiter " - "
+    cat $Cov | cut -f3 | sort -n | awk ' { a[i++]=$1; } END { print a[int(i/2)]; }'
+  done
+done > analysis/genome_alignment/minimap/read_coverage.txt
+```
+```bash
+  for Cov in $(ls analysis/genome_alignment/minimap/p.stipitis/vs_*/*_depth.tsv); do
+    Strain=$(echo $Cov | rev | cut -f2 -d '/' | rev)
+    Organism=$(echo $Cov | rev | cut -f3 -d '/' | rev)
+    echo "$Organism - $Strain"
+    OutDir=$(dirname $Cov)
+    ProgDir=git_repos/tools/seq_tools/genome_alignment/coverage_analysis
+    $ProgDir/cov_by_window.py --cov $OutDir/${Strain}_${Organism}_depth.tsv > $OutDir/${Organism}_${Strain}_depth_10kb.tsv
+    sed -i "s/$/\t$Strain/g" $OutDir/${Organism}_${Strain}_depth_10kb.tsv
+  done
+```
+
 (To see how the circos plots were generated see specific folder)
 
 
