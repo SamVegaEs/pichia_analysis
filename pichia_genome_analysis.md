@@ -1,5 +1,11 @@
 Pichia Stipitis Assemblies analysis. 
 
+Assemblies done by Jordan in EMR. Here those assemblies were taken and analysed:
+
+Alignments: Mummer, Minimap, Bwa
+Gene prediction: FUNGAP
+SNP calling: SNPEff and Medaka
+
 QC of MiSeq Data for Pichia stipitis.
 
 programs needed: Install with Conda: fastqc fastq-mcf kmc
