@@ -942,3 +942,43 @@ ProgDir=/projects/oldhome/armita/git_repos/emr_repos/scripts/pichia/popgen
 ProgDir=/home/sv264/git_repos/scripts/pichia_analysis/popgen
 $ProgDir/extract_ref_annotations.py --genes_gff git_repos/tools/seq_tools/FunGAP/fungap_out/fungap_out/*.gff3 --refseq assembly/misc_publications/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_feature_table.txt --snp_vcf analysis/popgen/SNP_calling/ab1082/vs_ab918/_temp_qfiltered_presence.recode_nonsyn.vcf --InterPro gene_pred/interproscan/p.stipitis/Y-11545_v2/GCF_000209165.1_ASM20916v1_protein.faa.tsv > analysis/popgen/SNP_calling/ab1082/vs_ab918/ab918_annotation_table.tsv
 ```
+
+
+SNP Calling using Medaka.
+
+SNPEff seemed to detect SNPs that then were not present in the assembly when the sequences were checked. This program uses the Illumina reads but the assemblies have been done without them (and are not polished). Maybe the difference is there?
+SnpEff cannot run with nanopore reads as it fails. Therefore Medaka was used (chosen by Nanopore recommendation).
+This was used for both 918 vs 1082 and 918 vs 11545. 
+
+```bash
+  conda create -n medaka
+  conda activate medaka
+  conda install -c bioconda medaka
+  conda deactivate
+```
+
+```bash
+sbatch git_repos/tools/seq_tools/medaka/medaka_snpcalling_slurm_3.sh
+```
+
+The program inside looks like this:
+
+```
+#!/bin/bash
+
+#SBATCH --nodes=1
+#SBATCH --mail-user=sv264@kent.ac.uk
+#SBATCH --output=/home/sv264/%j.out
+
+OUTDIR=analysis/popgen/SNP_calling/medaka/918_vs_1082
+
+for Assembly in $(ls niab_assemblies/pichia/918/918_Y-11543.fasta); do 
+echo 
+$Assembly Strain=$(echo $Assembly | rev | cut -f2 -d '/' | rev) 
+Organism=$(echo $Assembly | rev | cut -f3 -d '/' | rev) 
+Reads1=$(ls niab_assemblies/pichia/1082/AB1082.fastq.gz) 
+done
+
+medaka_haploid_variant -i $Reads1 -r $Assembly -o $OUTDIR -m r941_min_sup_variant_g507
+```
+
